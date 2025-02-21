@@ -65,7 +65,9 @@ async def create_upload_file(file: Annotated[bytes, File()]):
     image_embedding = predictor.get_image_embedding().cpu().numpy()
     print(image_embedding.shape)
 
-    embedding_base64 = base64.b64encode(image_embedding.tobytes()).decode("utf-8")
+    # 将float32转换为float16以减小文件大小
+    reduced_precision = image_embedding.astype(np.float16)
+    embedding_base64 = base64.b64encode(reduced_precision.tobytes()).decode("utf-8")
 
     return [embedding_base64]
 

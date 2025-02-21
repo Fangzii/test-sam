@@ -9,7 +9,7 @@ import {
   modelInputProps,
 } from "./Interfaces";
 
-const API_ENDPOINT = process.env.API_ENDPOINT;
+const API_ENDPOINT = 'http://0.0.0.0:3000/api'
 
 const setParmsandQueryModel = ({
   width,
@@ -61,8 +61,29 @@ const queryModelReturnTensors = async ({
       for (let i = 0; i < binaryString.length; i++) {
         uint8arr[i] = binaryString.charCodeAt(i);
       }
-      const float32Arr = new Float32Array(uint8arr.buffer);
-      return float32Arr;
+      const float16Arr = new Float32Array(uint8arr.buffer.byteLength / 2);
+      const dataView = new DataView(uint8arr.buffer);
+      for (let i = 0; i < float16Arr.length; i++) {
+        const uint16Value = dataView.getUint16(i * 2, true);
+        const sign = (uint16Value & 0x8000) ? -1 : 1;
+        const exponent = (uint16Value & 0x7C00) >> 10;
+        const fraction = uint16Value & 0x03FF;
+
+        let result;
+        if (exponent === 0) {
+          if (fraction === 0) {
+            result = sign * 0;
+          } else {
+            result = sign * fraction * Math.pow(2, -24);
+          }
+        } else if (exponent === 0x1F) {
+          result = fraction ? NaN : (sign * Infinity);
+        } else {
+          result = sign * Math.pow(2, exponent - 15) * (1 + fraction / 0x400);
+        }
+        float16Arr[i] = result;
+      }
+      return float16Arr;
     });
     const lowResTensor = new Tensor("float32", embedArr[0], [1, 256, 64, 64]);
     handleSegModelResults({
