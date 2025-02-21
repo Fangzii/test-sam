@@ -65,8 +65,43 @@ async def create_upload_file(file: Annotated[bytes, File()]):
     image_embedding = predictor.get_image_embedding().cpu().numpy()
     print(image_embedding.shape)
 
-    # 将float32转换为float16以减小文件大小
-    reduced_precision = image_embedding.astype(np.float16)
+    # 将float32转换为float8 (1位符号，4位指数，3位小数)
+    def float32_to_float8(arr):
+        # 将数组展平并转换为float32
+        flat_arr = arr.ravel().astype(np.float32)
+        # 初始化uint8数组
+        uint8_arr = np.zeros(len(flat_arr), dtype=np.uint8)
+        
+        for i in range(len(flat_arr)):
+            val = flat_arr[i]
+            # 处理特殊情况
+            if np.isnan(val):
+                uint8_arr[i] = 0xFF  # NaN
+                continue
+            if val == 0:
+                uint8_arr[i] = 0x00  # Zero
+                continue
+            if np.isinf(val):
+                uint8_arr[i] = 0x7F if val > 0 else 0xFF  # +/-Inf
+                continue
+            
+            # 提取符号位
+            sign = 0 if val >= 0 else 1
+            val = abs(val)
+            
+            # 计算指数和尾数
+            exp = int(np.floor(np.log2(val)))
+            exp = min(max(exp + 7, 0), 15)  # 4位指数范围为[0,15]
+            
+            # 计算尾数
+            frac = int((val / (2 ** (exp - 7)) - 1.0) * 8) & 0x7
+            
+            # 组合成8位
+            uint8_arr[i] = (sign << 7) | (exp << 3) | frac
+        
+        return uint8_arr.reshape(arr.shape)
+
+    reduced_precision = float32_to_float8(image_embedding)
     embedding_base64 = base64.b64encode(reduced_precision.tobytes()).decode("utf-8")
 
     return [embedding_base64]

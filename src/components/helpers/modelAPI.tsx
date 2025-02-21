@@ -61,29 +61,36 @@ const queryModelReturnTensors = async ({
       for (let i = 0; i < binaryString.length; i++) {
         uint8arr[i] = binaryString.charCodeAt(i);
       }
-      const float16Arr = new Float32Array(uint8arr.buffer.byteLength / 2);
-      const dataView = new DataView(uint8arr.buffer);
-      for (let i = 0; i < float16Arr.length; i++) {
-        const uint16Value = dataView.getUint16(i * 2, true);
-        const sign = (uint16Value & 0x8000) ? -1 : 1;
-        const exponent = (uint16Value & 0x7C00) >> 10;
-        const fraction = uint16Value & 0x03FF;
 
-        let result;
-        if (exponent === 0) {
-          if (fraction === 0) {
-            result = sign * 0;
-          } else {
-            result = sign * fraction * Math.pow(2, -24);
-          }
-        } else if (exponent === 0x1F) {
-          result = fraction ? NaN : (sign * Infinity);
-        } else {
-          result = sign * Math.pow(2, exponent - 15) * (1 + fraction / 0x400);
+      // 将uint8数组转换为float32数组
+      const float32Arr = new Float32Array(uint8arr.length);
+      for (let i = 0; i < uint8arr.length; i++) {
+        const byte = uint8arr[i];
+
+        // 解析float8的各个部分
+        const sign = (byte & 0x80) ? -1 : 1;
+        const exponent = (byte & 0x78) >> 3;
+        const fraction = byte & 0x07;
+
+        // 特殊值处理
+        if (byte === 0x00) {
+          float32Arr[i] = 0;  // Zero
+          continue;
         }
-        float16Arr[i] = result;
+        if (byte === 0xFF) {
+          float32Arr[i] = NaN;  // NaN
+          continue;
+        }
+        if (byte === 0x7F) {
+          float32Arr[i] = Infinity;  // +Inf
+          continue;
+        }
+
+        // 常规值转换
+        const value = sign * Math.pow(2, exponent - 7) * (1 + fraction / 8);
+        float32Arr[i] = value;
       }
-      return float16Arr;
+      return float32Arr;
     });
     const lowResTensor = new Tensor("float32", embedArr[0], [1, 256, 64, 64]);
     handleSegModelResults({
