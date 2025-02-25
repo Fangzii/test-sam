@@ -43,6 +43,7 @@ const App = () => {
   const [model, setModel] = useState<InferenceSession | null>(null); // ONNX model
   const [tensor, setTensor] = useState<Tensor | null>(null); // Image embedding tensor
   const [hasClicked, setHasClicked] = useState<boolean>(false);
+  const [selectMode, setSelectMode] = useState<"select" | "deselect">("select"); // 新增选择模式状态
 
   // The ONNX model expects the input to be rescaled to 1024.
   // The modelScale state variable keeps track of the scale values.
@@ -227,10 +228,32 @@ const App = () => {
           Box
         </button>
       </div>
+      {segmentTypes === "Click" && (
+        <div className="flex flex-row mb-4">
+          <button
+            className={
+              "text-white font-bold py-2 px-4 mx-2 rounded " +
+              (selectMode === "select" ? "bg-green-500" : "bg-gray-400")
+            }
+            onClick={() => setSelectMode("select")}
+          >
+            Select
+          </button>
+          <button
+            className={
+              "text-white font-bold py-2 px-4 mx-2 rounded " +
+              (selectMode === "deselect" ? "bg-red-500" : "bg-gray-400")
+            }
+            onClick={() => setSelectMode("deselect")}
+          >
+            Deselect
+          </button>
+        </div>
+      )}
       {showLoadingModal ? (
         <LoadingModal />
       ) : (
-        <Stage hasClicked={hasClicked} setHasClicked={setHasClicked} />
+        <Stage hasClicked={hasClicked} setHasClicked={setHasClicked} selectMode={selectMode} />
       )}
       <button
         className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 my-3 rounded"

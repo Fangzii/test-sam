@@ -9,7 +9,7 @@ import AppContext from "./hooks/createContext";
 
 type Points = { sx: number; sy: number; x: number; y: number };
 
-const Stage = ({ hasClicked, setHasClicked }: StageProps) => {
+const Stage = ({ hasClicked, setHasClicked, selectMode }: StageProps) => {
   const {
     click: [, setClick],
     clicks: [clicks, setClicks],
@@ -34,7 +34,7 @@ const Stage = ({ hasClicked, setHasClicked }: StageProps) => {
   };
 
   const getClick = (x: number, y: number): modelInputProps => {
-    const clickType = 1;
+    const clickType = selectMode === "select" ? 1 : 0;
     return { x, y, width: null, height: null, clickType };
   };
 

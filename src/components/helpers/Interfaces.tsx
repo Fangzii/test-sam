@@ -52,4 +52,5 @@ export interface ToolProps {
 export interface StageProps {
   hasClicked: boolean;
   setHasClicked: (e: boolean) => void;
+  selectMode: "select" | "deselect";
 }
