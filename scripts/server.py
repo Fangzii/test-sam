@@ -67,37 +67,42 @@ async def create_upload_file(file: Annotated[bytes, File()]):
 
     # 将float32转换为float8 (1位符号，4位指数，3位小数)
     def float32_to_float8(arr):
-        # 将数组展平并转换为float32
-        flat_arr = arr.ravel().astype(np.float32)
-        # 初始化uint8数组
-        uint8_arr = np.zeros(len(flat_arr), dtype=np.uint8)
+        # 将数组展平
+        flat_arr = arr.ravel()
         
-        for i in range(len(flat_arr)):
-            val = flat_arr[i]
-            # 处理特殊情况
-            if np.isnan(val):
-                uint8_arr[i] = 0xFF  # NaN
-                continue
-            if val == 0:
-                uint8_arr[i] = 0x00  # Zero
-                continue
-            if np.isinf(val):
-                uint8_arr[i] = 0x7F if val > 0 else 0xFF  # +/-Inf
-                continue
+        # 创建输出数组
+        uint8_arr = np.zeros_like(flat_arr, dtype=np.uint8)
+        
+        # 处理特殊情况（使用向量化操作）
+        is_nan = np.isnan(flat_arr)
+        is_zero = flat_arr == 0
+        is_pos_inf = np.isposinf(flat_arr)
+        is_neg_inf = np.isneginf(flat_arr)
+        
+        uint8_arr[is_nan] = 0xFF
+        uint8_arr[is_zero] = 0x00
+        uint8_arr[is_pos_inf] = 0x7F
+        uint8_arr[is_neg_inf] = 0xFF
+        
+        # 处理正常值
+        normal_mask = ~(is_nan | is_zero | is_pos_inf | is_neg_inf)
+        normal_vals = flat_arr[normal_mask]
+        
+        if len(normal_vals) > 0:
+            # 计算符号位
+            signs = np.signbit(normal_vals).astype(np.uint8) << 7
             
-            # 提取符号位
-            sign = 0 if val >= 0 else 1
-            val = abs(val)
-            
-            # 计算指数和尾数
-            exp = int(np.floor(np.log2(val)))
-            exp = min(max(exp + 7, 0), 15)  # 4位指数范围为[0,15]
+            # 计算指数
+            abs_vals = np.abs(normal_vals)
+            exps = np.floor(np.log2(abs_vals)).astype(np.int32)
+            exps = np.clip(exps + 7, 0, 15) << 3
             
             # 计算尾数
-            frac = int((val / (2 ** (exp - 7)) - 1.0) * 8) & 0x7
+            fracs = ((abs_vals / (2 ** (exps >> 3 - 7))) - 1.0) * 8
+            fracs = fracs.astype(np.uint8) & 0x7
             
-            # 组合成8位
-            uint8_arr[i] = (sign << 7) | (exp << 3) | frac
+            # 组合所有位
+            uint8_arr[normal_mask] = signs | exps | fracs
         
         return uint8_arr.reshape(arr.shape)
 
