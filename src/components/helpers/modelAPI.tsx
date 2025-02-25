@@ -9,7 +9,7 @@ import {
   modelInputProps,
 } from "./Interfaces";
 
-const API_ENDPOINT = 'http://0.0.0.0:3000/api'
+const API_ENDPOINT = process.env.API_ENDPOINT;
 
 const setParmsandQueryModel = ({
   width,
