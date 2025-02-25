@@ -78,7 +78,7 @@ const App = () => {
 
     // Load the image
     const url = new URL(IMAGE_PATH, location.origin);
-    loadImage(url.href, url.pathname.split("/").pop()!, true);
+    // loadImage(url.href, url.pathname.split("/").pop()!, true);
   }, []);
 
   // Load the image from the file picker
@@ -111,15 +111,7 @@ const App = () => {
         setImage(img);
 
         if (init) {
-          // Load the Segment Anything pre-computed embedding
-          Promise.resolve(loadNpyTensor(IMAGE_EMBEDDING, "float32"))
-            .then((embedding) => setTensor(embedding))
-            .catch((e) => {
-              handleResetState();
-              setImage(null);
-              setTensor(null);
-              console.log(e);
-            });
+
         } else {
           setShowLoadingModal(true);
           setParmsandQueryModel({
@@ -142,17 +134,11 @@ const App = () => {
     setShowLoadingModal(false);
   };
 
-  // Decode a Numpy file into a tensor.
-  const loadNpyTensor = async (tensorFile: string, dType: string) => {
-    const npLoader = new npyjs();
-    const npArray = await npLoader.load(tensorFile);
-    const tensor = new ort.Tensor(dType, npArray.data, npArray.shape);
-    return tensor;
-  };
 
   // Run the ONNX model every time clicks has changed
   useEffect(() => {
     runONNX();
+    console.log("clicks", clicks, hasClicked);
   }, [clicks, hasClicked]);
 
   const runONNX = async () => {

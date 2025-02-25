@@ -119,6 +119,11 @@ const modelData = ({
   modelScale,
   last_pred_mask,
 }: modeDataProps) => {
+  // 后续可以提供给用户调整参数
+
+  const MAX_CLICK_RANGE = 500; // 设置最大点击范围为50像素
+  const BOUNDARY_POINTS = 1; // 在周围添加8个负点击来限制范围
+
   const imageEmbedding = tensor;
   let pointCoords;
   let pointLabels;
@@ -130,6 +135,36 @@ const modelData = ({
     let n = clicks.length;
     const clicksFromBox = clicks[0].clickType === 2 ? 2 : 0;
 
+    // 为每个正点击创建周围的负点击
+    const boundaryClicks = clicks.reduce((acc, click) => {
+      if (click.clickType === 1) {  // 只处理普通点击，不处理框选
+        const radius = MAX_CLICK_RANGE;
+        // 在周围添加8个负点击
+        for (let i = 0; i < BOUNDARY_POINTS; i++) {
+          const angle = (i * 2 * Math.PI) / BOUNDARY_POINTS;
+          const boundaryX = click.x + radius * Math.cos(angle);
+          const boundaryY = click.y + radius * Math.sin(angle);
+
+          // 确保边界点在图像范围内
+          const x = Math.min(Math.max(0, boundaryX), modelScale.width);
+          const y = Math.min(Math.max(0, boundaryY), modelScale.height);
+
+          acc.push({
+            x,
+            y,
+            width: null,
+            height: null,
+            clickType: 0  // 0 表示负点击
+          });
+        }
+      }
+      acc.push(click);  // 保留原始点击
+      return acc;
+    }, [] as modelInputProps[]);
+
+    // 更新点击数量
+    n = boundaryClicks.length;
+
     // If there is no box input, a single padding point with
     // label -1 and coordinates (0.0, 0.0) should be concatenated
     // so initialize the array to support (n + 1) points.
@@ -138,9 +173,6 @@ const modelData = ({
 
     // Check if there is a box input
     if (clicksFromBox) {
-      // For box model need to include the box clicks in the point
-      // coordinates and also don't need to include the extra
-      // negative point
       pointCoords = new Float32Array(2 * (n + clicksFromBox));
       pointLabels = new Float32Array(n + clicksFromBox);
       const {
@@ -149,9 +181,7 @@ const modelData = ({
       }: {
         upperLeft: { x: number; y: number };
         bottomRight: { x: number; y: number };
-      } = getPointsFromBox(clicks[0])!;
-      pointCoords = new Float32Array(2 * (n + clicksFromBox));
-      pointLabels = new Float32Array(n + clicksFromBox);
+      } = getPointsFromBox(boundaryClicks[0])!;
       pointCoords[0] = upperLeft.x * modelScale.samScale;
       pointCoords[1] = upperLeft.y * modelScale.samScale;
       pointLabels[0] = 2.0; // UPPER_LEFT
@@ -162,13 +192,13 @@ const modelData = ({
       last_pred_mask = null;
     }
 
-    // Add regular clicks and scale to what SAM expects
+    // Add all clicks (including boundary clicks) and scale to what SAM expects
     for (let i = 0; i < n; i++) {
-      pointCoords[2 * (i + clicksFromBox)] = clicks[i].x * modelScale.samScale;
-      pointCoords[2 * (i + clicksFromBox) + 1] =
-        clicks[i].y * modelScale.samScale;
-      pointLabels[i + clicksFromBox] = clicks[i].clickType;
+      pointCoords[2 * (i + clicksFromBox)] = boundaryClicks[i].x * modelScale.samScale;
+      pointCoords[2 * (i + clicksFromBox) + 1] = boundaryClicks[i].y * modelScale.samScale;
+      pointLabels[i + clicksFromBox] = boundaryClicks[i].clickType;
     }
+    console.log(pointLabels, ' === pointLabels === ')
 
     // Add in the extra point/label when only clicks and no box
     // The extra point is at (0, 0) with label -1
