@@ -15,4 +15,4 @@ __pycache__/
 model_ts*.txt
 
 # onnx models
-*.onnx
+# *.onnx
